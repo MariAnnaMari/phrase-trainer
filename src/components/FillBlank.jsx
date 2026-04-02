@@ -11,16 +11,22 @@ export default function FillBlank({ phrases, sectionId }) {
   const inputRef = useRef(null);
 
   const phrase = phrases[idx];
-  const blanked = makeBlanked(phrase.phrase, phrase.example);
-  const isCorrect = input.trim().toLowerCase() === phrase.phrase.toLowerCase();
+  const blankData = makeBlanked(phrase.phrase, phrase.example);
+  const blanked = blankData.text;
+  const expectedAnswer = blankData.displayAnswer;
 
-  // Reset state and focus when phrase changes
+  const normalize = (s) => s.trim().toLowerCase();
+
+  const isCorrect = blankData.acceptedAnswers.some(
+      (answer) => normalize(answer) === normalize(input)
+  );
+
   useEffect(() => {
     patchState({ [idxKey]: idx });
     setInput('');
     setSubmitted(false);
     setTimeout(() => inputRef.current?.focus(), 80);
-  }, [idx]);
+  }, [idx, idxKey]);
 
   function handleSubmit() {
     if (!input.trim()) return;
@@ -28,84 +34,91 @@ export default function FillBlank({ phrases, sectionId }) {
   }
 
   function goNext() {
-    setIdx(i => (i + 1) % phrases.length);
+    setIdx((i) => (i + 1) % phrases.length);
   }
 
-  // Split the blanked sentence around "___" to render styled gap
-  const [before, after] = blanked.split('___');
+  const [before, after] = blanked.includes('___')
+      ? blanked.split('___')
+      : [blanked, ''];
 
   return (
-    <div>
-      <div className="card" style={{ minHeight: 280, display: 'flex', flexDirection: 'column' }}>
-        {/* Progress */}
-        <div className="card-progress">
-          <span>{idx + 1} / {phrases.length}</span>
-          <div className="progress-bar">
-            <div
-              className="progress-fill"
-              style={{ width: `${((idx + 1) / phrases.length) * 100}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Sentence with gap */}
-        <div className="blank-sentence">
-          "{before}
-          <span className="blank-word">
-            {submitted ? phrase.phrase : '\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0'}
+      <div>
+        <div
+            className="card"
+            style={{ minHeight: 280, display: 'flex', flexDirection: 'column' }}
+        >
+          <div className="card-progress">
+          <span>
+            {idx + 1} / {phrases.length}
           </span>
-          {after}"
-        </div>
-
-        {/* Answer input */}
-        <input
-          ref={inputRef}
-          className={`fill-input${submitted ? (isCorrect ? ' correct' : ' wrong') : ''}`}
-          type="text"
-          placeholder="Type the missing phrase…"
-          value={input}
-          disabled={submitted}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !submitted) handleSubmit(); }}
-        />
-
-        {/* Post-submit result */}
-        {submitted && (
-          <div style={{ animation: 'fadeIn 0.2s ease' }}>
-            <div className={`feedback-badge ${isCorrect ? 'correct' : 'wrong'}`}>
-              {isCorrect ? '✓ Correct!' : `✗ Answer: "${phrase.phrase}"`}
-            </div>
-            <div className="card-definition">{phrase.definition}</div>
-            <span className="card-translation">{phrase.translation}</span>
-            <div className="audio-row" style={{ marginTop: 12 }}>
-              <AudioBtn text={phrase.phrase} label="phrase" />
-              <AudioBtn text={phrase.example} label="example" />
+            <div className="progress-bar">
+              <div
+                  className="progress-fill"
+                  style={{ width: `${((idx + 1) / phrases.length) * 100}%` }}
+              />
             </div>
           </div>
-        )}
 
-        {/* Action buttons */}
-        <div className="nav-row" style={{ marginTop: 'auto', paddingTop: 16 }}>
-          {!submitted ? (
-            <button className="btn btn-primary btn-wide" onClick={handleSubmit}>
-              Check
-            </button>
-          ) : (
-            <>
-              <button
-                className="btn btn-wide"
-                onClick={() => setIdx(i => Math.max(0, i - 1))}
-                disabled={idx === 0}
-              >
-                ← prev
-              </button>
-              <button className="btn btn-primary btn-wide" onClick={goNext}>
-                {idx === phrases.length - 1 ? 'restart' : 'next →'}
-              </button>
-            </>
+          <div className="blank-sentence">
+            "{before}
+            <span className="blank-word">
+            {submitted ? blankData.matched : '\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0'}
+          </span>
+            {after}"
+          </div>
+
+          <input
+              ref={inputRef}
+              className={`fill-input${submitted ? (isCorrect ? ' correct' : ' wrong') : ''}`}
+              type="text"
+              placeholder="Type the missing phrase…"
+              value={input}
+              disabled={submitted}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !submitted) handleSubmit();
+              }}
+          />
+
+          {submitted && (
+              <div style={{ animation: 'fadeIn 0.2s ease' }}>
+                <div className={`feedback-badge ${isCorrect ? 'correct' : 'wrong'}`}>
+                  {isCorrect ? '✓ Correct!' : `✗ Answer: "${expectedAnswer}"`}
+                </div>
+                <div className="card-definition">{phrase.definition}</div>
+                <span className="card-translation">{phrase.translation}</span>
+                <div className="audio-row" style={{ marginTop: 12 }}>
+                  <AudioBtn text={phrase.phrase} label="phrase" />
+                  <AudioBtn text={phrase.example} label="example" />
+                </div>
+              </div>
           )}
+
+          <div className="nav-row" style={{ marginTop: 'auto', paddingTop: 16 }}>
+            {!submitted ? (
+                <button
+                    className="btn btn-primary"
+                    style={{ alignSelf: 'flex-start', marginTop: 'auto' }}
+                    onClick={handleSubmit}
+                >
+                  Check
+                </button>
+            ) : (
+                <>
+                  <button
+                      className="btn btn-wide"
+                      onClick={() => setIdx((i) => Math.max(0, i - 1))}
+                      disabled={idx === 0}
+                  >
+                    ← prev
+                  </button>
+                  <button className="btn btn-primary btn-wide" onClick={goNext}>
+                    {idx === phrases.length - 1 ? 'restart' : 'next →'}
+                  </button>
+                </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
   );
 }
